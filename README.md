@@ -102,7 +102,8 @@ We present a detailed table here. The model is tested on A800.
 |14B|torch.bfloat16|1|False|0|22.1s/it|8G|
 |14B|torch.bfloat16|4|True|None (unlimited)|4.8s/it|14.3G|
 
-We train train 14B under `30000` tokens for `480p` videos. We found that using more tokens when inference can also have good results. You can try `60000`, `80000`. Overlap `overlap_frame` can be set as `1` or `13`. `13` could have more coherent generation, but error propagation is more severe.
+We train 14B under `30000` tokens for `480p` videos. We found that using more tokens when inference can also have good results. You can try `60000`, `80000`.
+Overlap `overlap_frame` can be set as `1` or `13`. `13` could have more coherent generation, but error propagation is more severe.
 
 - ❕Prompts are also very important. It is recommended to `[Description of first frame]`- `[Description of human behavior]`-`[Description of background (optional)]`
 
