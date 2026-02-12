@@ -99,19 +99,19 @@ class WanInferencePipeline(nn.Module):
 
     def load_model(self):
         dist.init_process_group(
-            backend="nccl",
+            backend="gloo",
             init_method="env://",
         )
-        from xfuser.core.distributed import (initialize_model_parallel,
-                                            init_distributed_environment)
-        init_distributed_environment(
-            rank=dist.get_rank(), world_size=dist.get_world_size())
+        # from xfuser.core.distributed import (initialize_model_parallel,
+        #                                     init_distributed_environment)
+        # init_distributed_environment(
+        #     rank=dist.get_rank(), world_size=dist.get_world_size())
 
-        initialize_model_parallel(
-            sequence_parallel_degree=args.sp_size,
-            ring_degree=1,
-            ulysses_degree=args.sp_size,
-        )
+        # initialize_model_parallel(
+        #     sequence_parallel_degree=args.sp_size,
+        #     ring_degree=1,
+        #     ulysses_degree=args.sp_size,
+        # )
         torch.cuda.set_device(dist.get_rank())
         ckpt_path = f'{args.exp_path}/pytorch_model.pt'
         assert os.path.exists(ckpt_path), f"pytorch_model.pt not found in {args.exp_path}"

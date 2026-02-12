@@ -1,10 +1,12 @@
 import os
 import subprocess
+import imageio_ffmpeg
 
 def add_silence_to_audio_ffmpeg(audio_path, tmp_audio_path, silence_duration_s=0.5):
     # 使用 ffmpeg 命令在音频前加上静音
+    ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
     command = [
-        'ffmpeg', 
+        ffmpeg_exe, 
         '-i', audio_path,  # 输入音频文件路径
         '-f', 'lavfi',  # 使用 lavfi 虚拟输入设备生成静音
         '-t', str(silence_duration_s),  # 静音时长，单位秒
