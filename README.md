@@ -35,8 +35,8 @@ Install dependencies:
 ```
 pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cu124
 pip install -r requirements.txt
-# Optional to install flash_attn to accelerate attention computation
-pip install flash_attn
+# Note: flash_attn is optional. If you encounter SIGSEGV or ABI mismatch, 
+# it is recommended to uninstall it and use the native PyTorch SDPA.
 ```
 
 ### 🧱Model Download
@@ -72,6 +72,11 @@ OmniAvatar
 
 ### 🔑 Inference
 
+For stable single-GPU inference, use the following environment variables:
+```bash
+export NCCL_P2P_DISABLE=1
+export NCCL_IB_DISABLE=1
+```
 
 ``` sh
 # 480p only for now
@@ -126,3 +131,84 @@ If you find this repository useful, please consider giving a star ⭐ and citati
 
 ## Acknowledgments
 Thanks to [Wan2.1](https://github.com/Wan-Video/Wan2.1), [FantasyTalking](https://github.com/Fantasy-AMAP/fantasy-talking) and [DiffSynth-Studio](https://github.com/modelscope/DiffSynth-Studio) for open-sourcing their models and code, which provided valuable references and support for this project. Their contributions to the open-source community are truly appreciated.
+
+## Setup Log
+- Started setup on Wed Feb 11 11:00:20 UTC 2026
+- Created virtual environment 'venv' and activated it.
+
+## Installation and Inference Report (Automated Setup)
+
+### Environment
+- **OS:** Linux
+- **Python:** 3.12.3
+- **CUDA:** 12.8 (Driver 570.211.01)
+- **GPU:** NVIDIA A100-SXM4-40GB
+
+### Steps Performed
+
+1.  **Virtual Environment Setup:**
+    - Created a virtual environment: `python3 -m venv venv`
+    - Activated: `source venv/bin/activate`
+
+2.  **Model Download:**
+    - Installed `huggingface_hub`.
+    - Downloaded models to `pretrained_models/`:
+        - `Wan-AI/Wan2.1-T2V-1.3B`
+        - `facebook/wav2vec2-base-960h`
+        - `OmniAvatar/OmniAvatar-1.3B`
+
+3.  **Dependency Installation:**
+    - Installed PyTorch (CUDA 12.4 compatible):
+      `pip install torch==2.4.0 torchvision==0.19.0 torchaudio==2.4.0 --index-url https://download.pytorch.org/whl/cu124`
+    - Installed build tools: `pip install ninja packaging wheel`
+    - Installed `flash_attn` from source (with system CUDA 12.8):
+      `pip install flash_attn --no-build-isolation`
+      *Note: Compilation used system CUDA 12.8 while PyTorch uses 12.4. This mismatch is a likely cause of instability.*
+
+4.  **Patches & Fixes:**
+    - **Dependency Conflict:** Downgraded `torch` to 2.4.0 after `requirements.txt` inadvertently upgraded it.
+    - **PEFT Version:** Upgraded `peft` to `>=0.17.0` (installed `0.18.1`) as required by `diffusers`.
+    - **libGL Issue:** Replaced `opencv-python` with `opencv-python-headless` to avoid missing system libraries.
+    - **FFmpeg Path:** Patched `OmniAvatar/utils/audio_preprocess.py` to use `imageio_ffmpeg` for locating the ffmpeg binary.
+    - **NCCL Configuration:** Set `NCCL_P2P_DISABLE=1` and `NCCL_IB_DISABLE=1` to prevent "network gIB not found" errors on single-node execution.
+    - **Optimum-Quanto:** Attempted downgrade to `0.2.4` to resolve compatibility warning with torch 2.4.0.
+
+5.  **Inference Execution:**
+    - Command:
+      ```bash
+      torchrun --standalone --nproc_per_node=1 scripts/inference.py --config configs/inference_1.3B.yaml --input_file examples/infer_samples.txt
+      ```
+    - **Outcome:** The inference script starts, loads all models (DiT, VAE, Text Encoder, LoRA), but encounters a **Segmentation Fault (SIGSEGV)** immediately upon starting the generation loop.
+    - **Diagnosis:** The segfault is likely due to the ABI mismatch between `flash_attn` (compiled with CUDA 12.8) and PyTorch (linked against CUDA 12.4). Resolving this requires matching the CUDA toolkit version used for compilation with the PyTorch CUDA version.
+
+### Conclusion
+The environment is fully set up with all models and dependencies. Inference can be re-attempted by resolving the CUDA version mismatch for `flash_attn` or by using a PyTorch version matching the system CUDA (12.8) if available.
+
+## Resolution Report (Feb 12, 2026)
+
+### Issues Resolved
+
+1.  **Segmentation Fault (SIGSEGV):**
+    - **Cause:** The `nccl` backend was causing crashes during distributed initialization/barrier on single-GPU setups in this environment.
+    - **Fix:** Switched the distributed backend from `nccl` to `gloo` in `scripts/inference.py`.
+    - **Fix:** Bypassed `xfuser` initialization when `sp_size=1` to ensure stability.
+
+2.  **Flash Attention ABI Mismatch:**
+    - **Cause:** `flash_attn` compiled with system CUDA 12.8 was incompatible with PyTorch 2.4.0 (linked to CUDA 12.4).
+    - **Fix:** Uninstalled `flash_attn`. The pipeline now defaults to PyTorch's native `Scaled Dot Product Attention (SDPA)`, which is stable and performant on A100.
+
+3.  **Librosa/Numba Dependency Conflict:**
+    - **Cause:** `numba` required `numpy < 2.4`, but a newer version was installed.
+    - **Fix:** Downgraded `numpy` to `1.26.4`.
+
+4.  **FFmpeg Path Errors:**
+    - **Cause:** Hardcoded `/usr/bin/ffmpeg` path in `OmniAvatar/utils/io_utils.py` failed as the binary was located elsewhere.
+    - **Fix:** Patched `OmniAvatar/utils/io_utils.py` to use `imageio_ffmpeg.get_ffmpeg_exe()` to dynamically locate the binary.
+
+5.  **Missing libGL:**
+    - **Fix:** Replaced `opencv-python` with `opencv-python-headless`.
+
+### Final Status
+The 1.3B inference pipeline is now **fully functional**. 
+Generated videos are saved in `demo_out/OmniAvatar-1.3B/.../result_000_000_wav.mp4`.
+
