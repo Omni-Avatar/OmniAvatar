@@ -246,7 +246,8 @@ class WanInferencePipeline(nn.Module):
                 audio_len = audio_len + ((L - first_fixed_frame) - audio_len % (L - first_fixed_frame))
             elif (audio_len - (L - first_fixed_frame)) % (L - fixed_frame) != 0:
                 audio_len = audio_len + ((L - fixed_frame) - (audio_len - (L - first_fixed_frame)) % (L - fixed_frame))
-            input_values = F.pad(input_values, (0, audio_len * int(self.args.sample_rate / self.args.fps) - input_values.shape[1]), mode='constant', value=0)
+            target_samples = math.ceil(audio_len * self.args.sample_rate / self.args.fps)
+            input_values = F.pad(input_values, (0, target_samples - input_values.shape[1]), mode='constant', value=0)
             with torch.no_grad():
                 hidden_states = self.audio_encoder(input_values, seq_len=audio_len, output_hidden_states=True)
                 audio_embeddings = hidden_states.last_hidden_state
